@@ -1026,22 +1026,65 @@ class TodoApp:
         self.root = root
         self.root.title("이메일 To-Do 관리")
         self.root.geometry("1100x700")
-        
+
+        # ===== img.png를 앱 아이콘으로 적용 =====
+        try:
+            icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img.png")
+            self._icon_img = tk.PhotoImage(file=icon_path)
+            self.root.iconphoto(True, self._icon_img)
+        except Exception as e:
+            print(f"[WARNING] 아이콘(img.png) 적용 실패: {e}")
+
+        # ===== 밝은 브라이트 모드 및 검정 계열 글씨 적용 =====
+        bright_bg = "#ffffff"  # 완전 흰색 배경
+        dark_fg = "#111111"   # 거의 검정색 글씨
+        subtle_fg = "#222222" # 약간 밝은 검정
+        self.root.configure(bg=bright_bg)
+
+        # ttk 스타일 밝은 모드 적용
+        style = ttk.Style(self.root)
+        style.configure("TLabel", background=bright_bg, foreground=dark_fg)
+        style.configure("TButton", background=bright_bg, foreground=dark_fg)
+        style.configure("TEntry", fieldbackground=bright_bg, foreground=dark_fg)
+        style.configure("TMenubutton", background=bright_bg, foreground=dark_fg)
+        style.configure("Treeview", background=bright_bg, foreground=dark_fg, fieldbackground=bright_bg)
+        style.configure("TNotebook", background=bright_bg, foreground=dark_fg)
+        style.configure("TNotebook.Tab", background=bright_bg, foreground=dark_fg)
+        style.configure("TCombobox", fieldbackground=bright_bg, foreground=dark_fg)
+        style.configure("TCheckbutton", background=bright_bg, foreground=dark_fg)
+        style.configure("TRadiobutton", background=bright_bg, foreground=dark_fg)
+        style.configure("TFrame", background=bright_bg)
+        style.configure("TLabelframe", background=bright_bg, foreground=dark_fg)
+        style.configure("TSeparator", background=bright_bg)
+        style.configure("TScrollbar", background=bright_bg)
+        style.configure("TProgressbar", background=bright_bg)
+        style.configure("TScale", background=bright_bg)
+        style.configure("TPanedwindow", background=bright_bg)
+        style.configure("TSpinbox", fieldbackground=bright_bg, foreground=dark_fg)
+        style.configure("TSizegrip", background=bright_bg)
+
+        # Tkinter 기본 위젯(Entry, Text 등) 검정 계열 적용
+        self.root.option_add("*Foreground", dark_fg)
+        self.root.option_add("*Background", bright_bg)
+        self.root.option_add("*insertBackground", dark_fg)
+        self.root.option_add("*selectBackground", "#e0e0e0")
+        self.root.option_add("*selectForeground", dark_fg)
+
         # Load settings
         self.settings = load_settings()
-        
+
         # Variables
         self.username_var = tk.StringVar()
         self.password_var = tk.StringVar()
         self.emails_data = []
-        
+
         # AI Classifier
         self.classifier = EmailClassifier()
         self.classifier.train()
-        
+
         # Categories
         self.categories = load_categories()
-        
+
         self.create_widgets()
         self.update_status_with_settings()
         # 알림 타이머 시작
@@ -1827,8 +1870,8 @@ from ttkthemes import ThemedTk
 import os
 
 if __name__ == "__main__":
-    # ThemedTk로 테마 적용 (adapta)
-    root = ThemedTk(theme="adapta")
+    # ThemedTk로 테마 적용 (yaru)
+    root = ThemedTk(theme="yaru")
 
     # BMJUA_ttf.ttf 폰트 family명 자동 감지 및 전체 적용
     font_path = os.path.join(os.path.dirname(__file__), "BMDOHYEON_ttf.ttf")
