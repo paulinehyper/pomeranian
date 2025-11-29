@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# VSCode
+.vscode/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Fonts and binaries
+*.ttf
+*.otf
+*.woff
+*.woff2
+
+# Logs
+*.log
+
+# Env files
+.env
+.env.*
+
+# Others
+*.bak
+*.swp

@@ -20,6 +20,7 @@ import os
 import json
 import tkinter as tk
 from tkinter import ttk, messagebox
+import tkinter.font as tkfont
 from html import unescape  # HTML → 텍스트 변환용
 
 # ML
@@ -1094,13 +1095,13 @@ class TodoApp:
         # Menu bar
         menubar = tk.Menu(self.root)
         self.root.config(menu=menubar)
-        
+
         settings_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="설정", menu=settings_menu)
         settings_menu.add_command(label="환경설정", command=self.open_settings)
         settings_menu.add_separator()
         settings_menu.add_command(label="종료", command=self.root.quit)
-        
+
         # Modernized 로그인 카드형 중앙 배치
         self.login_card = ttk.LabelFrame(self.root, text="IMAP 로그인", padding=10, borderwidth=0, relief="flat")
         self.login_card.pack(fill="x", padx=10, pady=5)
@@ -1120,7 +1121,7 @@ class TodoApp:
         ttk.Button(self.login_card, text="⚙ 환경설정", command=self.open_settings, width=14).grid(row=0, column=2, padx=(5, 5), pady=5, sticky='e')
         ttk.Button(self.login_card, text="이메일 불러오기", command=self.fetch_emails_handler, width=18).grid(row=0, column=3, padx=(5, 10), pady=5, sticky='e')
         self.login_card.columnconfigure(1, weight=1)
-        
+
         # 앱 시작 시 자동 이메일 불러오기 (설정에 아이디/비밀번호가 있으면)
         if self.settings.get("username") and self.settings.get("password"):
             self.username_var.set(self.settings.get("username"))
@@ -1128,73 +1129,74 @@ class TodoApp:
             self._add_placeholder(self.username_entry, '사용자명')
             self._add_placeholder_pw(self.password_entry, '비밀번호')
             self.root.after(500, self.fetch_emails_handler)
-        
+
         # Main content area with notebook (tabs)
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill="both", expand=True, padx=10, pady=5)
-        
+
         # Tab 1: To-Do List
-        todo_tab = ttk.Frame(self.notebook)
+        todo_tab = ttk.Frame(self.notebook, borderwidth=0, relief="flat")
         self.notebook.add(todo_tab, text="📋 할일 목록")
-        
+
         # Tab 2: All Emails
-        email_tab = ttk.Frame(self.notebook)
+        email_tab = ttk.Frame(self.notebook, borderwidth=0, relief="flat")
         self.notebook.add(email_tab, text="📧 전체 메일")
-        
+
         # ===== To-Do List Tab =====
-        todo_container = ttk.Frame(todo_tab)
+        todo_container = ttk.Frame(todo_tab, borderwidth=0, relief="flat")
         todo_container.pack(fill="both", expand=True, padx=5, pady=5)
-        
+
         # To-Do Tree
         todo_list_frame = ttk.LabelFrame(todo_container, text="할일 목록 (제출/검토)", padding=10, borderwidth=0, relief="flat")
         todo_list_frame.pack(side="left", fill="both", expand=True)
-        
+
         todo_columns = ("상태", "분류", "마감일", "제목", "발신자")
         self.todo_tree = ttk.Treeview(todo_list_frame, columns=todo_columns, show="tree headings", height=20)
-        
+
         self.todo_tree.heading("#0", text="번호")
         self.todo_tree.column("#0", width=50)
-        
+
         for col in todo_columns:
             self.todo_tree.heading(col, text=col)
-        
+
         self.todo_tree.column("상태", width=60)
         self.todo_tree.column("분류", width=60)
         self.todo_tree.column("마감일", width=150)
         self.todo_tree.column("제목", width=350)
         self.todo_tree.column("발신자", width=150)
-        
+
         todo_scrollbar = ttk.Scrollbar(todo_list_frame, orient="vertical", command=self.todo_tree.yview)
         self.todo_tree.configure(yscrollcommand=todo_scrollbar.set)
-        
+
         self.todo_tree.pack(side="left", fill="both", expand=True)
         todo_scrollbar.pack(side="right", fill="y")
-        
+
         # To-Do Actions
         todo_action_frame = ttk.LabelFrame(todo_container, text="할일 관리", padding=10, borderwidth=0, relief="flat")
         todo_action_frame.pack(side="right", fill="y", padx=(10, 0))
-        
+
         ttk.Button(todo_action_frame, text="✓ 완료 처리", command=self.mark_todo_complete, width=15).pack(pady=5)
         ttk.Button(todo_action_frame, text="↻ 미완료로 변경", command=self.mark_todo_incomplete, width=15).pack(pady=5)
         ttk.Button(todo_action_frame, text="상세 보기", command=self.view_todo_detail, width=15).pack(pady=5)
-        
+
+        # 구분선은 borderwidth=0, relief='flat'으로 대체
         ttk.Separator(todo_action_frame, orient="horizontal").pack(fill="x", pady=10)
-        
+
         ttk.Label(todo_action_frame, text="할일 통계:", font=("", 9, "bold")).pack(anchor="w", pady=(0, 5))
         self.todo_stats_label = ttk.Label(todo_action_frame, text="", font=("", 8), foreground="gray")
         self.todo_stats_label.pack(anchor="w", fill="x")
-        
+
         self.todo_tree.bind("<<TreeviewSelect>>", self.on_todo_select)
         self.todo_tree.bind("<Double-1>", lambda e: self.view_todo_detail())
-        
+
         # ===== All Emails Tab =====
-        email_container = ttk.Frame(email_tab)
+        email_container = ttk.Frame(email_tab, borderwidth=0, relief="flat")
         email_container.pack(fill="both", expand=True, padx=5, pady=5)
-        
+
         # Email List Frame
         list_frame = ttk.LabelFrame(email_container, text="이메일 목록", padding=10, borderwidth=0, relief="flat")
         list_frame.pack(side="left", fill="both", expand=True)
-        
+
         # Treeview
         columns = ("분류", "마감일", "제목", "발신자", "날짜")
         self.tree = ttk.Treeview(list_frame, columns=columns, show="tree headings", height=15)
@@ -1820,7 +1822,60 @@ class TodoApp:
 # Main
 # =====================================================
 
+
+from ttkthemes import ThemedTk
+import os
+
 if __name__ == "__main__":
-    root = tk.Tk()
+    # ThemedTk로 테마 적용 (adapta)
+    root = ThemedTk(theme="adapta")
+
+    # BMJUA_ttf.ttf 폰트 family명 자동 감지 및 전체 적용
+    font_path = os.path.join(os.path.dirname(__file__), "BMDOHYEON_ttf.ttf")
+    try:
+        # 윈도우에서 ttf 직접 로드
+        if os.name == "nt":
+            import ctypes
+            FR_PRIVATE = 0x10
+            ctypes.windll.gdi32.AddFontResourceExW(font_path, FR_PRIVATE, 0)
+
+        # 사용 가능한 폰트 family명 목록 확인
+        available_fonts = list(tkfont.families(root))
+        print("[DEBUG] 사용 가능한 폰트 family명:")
+        for fam in sorted(available_fonts):
+            print(fam)
+        # 나눔스퀘어(NanumSquare) family명으로 강제 지정
+        nanum_family = 'NanumSquare'
+        print(f"[DEBUG] 폰트 family명 강제 적용: {nanum_family}")
+
+        # Tkinter 기본 폰트 전체 변경
+        for font_name in ["TkDefaultFont", "TkTextFont", "TkMenuFont", "TkHeadingFont", "TkCaptionFont", "TkSmallCaptionFont", "TkIconFont", "TkTooltipFont"]:
+            root.tk.call("font", "configure", font_name, "-family", nanum_family, "-size", 11)
+
+        # ttk 위젯에도 폰트 강제 적용
+        style = ttk.Style(root)
+        style.configure("TLabel", font=(nanum_family, 11))
+        style.configure("TButton", font=(nanum_family, 11))
+        style.configure("TEntry", font=(nanum_family, 11))
+        style.configure("TMenubutton", font=(nanum_family, 11))
+        style.configure("Treeview", font=(nanum_family, 11))
+        style.configure("TNotebook", font=(nanum_family, 11))
+        style.configure("TNotebook.Tab", font=(nanum_family, 11))
+        style.configure("TCombobox", font=(nanum_family, 11))
+        style.configure("TCheckbutton", font=(nanum_family, 11))
+        style.configure("TRadiobutton", font=(nanum_family, 11))
+        style.configure("TFrame", font=(nanum_family, 11))
+        style.configure("TLabelframe", font=(nanum_family, 11))
+        style.configure("TSeparator", font=(nanum_family, 11))
+        style.configure("TScrollbar", font=(nanum_family, 11))
+        style.configure("TProgressbar", font=(nanum_family, 11))
+        style.configure("TScale", font=(nanum_family, 11))
+        style.configure("TPanedwindow", font=(nanum_family, 11))
+        style.configure("TSpinbox", font=(nanum_family, 11))
+        style.configure("TSizegrip", font=(nanum_family, 11))
+        print(f"[DEBUG] 폰트 family명 강제 적용: {nanum_family}")
+    except Exception as e:
+        print(f"BMJUA 폰트 적용 실패: {e}")
+
     app = TodoApp(root)
     root.mainloop()
