@@ -38,6 +38,8 @@ try:
 except ImportError:
     SENTENCE_TRANSFORMERS_AVAILABLE = False
 
+from email_db import init_email_db, save_emails_to_db, load_emails_from_db
+
 
 # =====================================================
 # Configuration
@@ -525,6 +527,12 @@ class EmailClassifier:
         """키워드 기반 분류 (fallback)"""
         text = f"{subject} {body}".lower()
         from_email_lower = from_email.lower()
+
+        # SNS 분류: facebook, instagram, linkedin + '...님이 ...했다' 문구
+        sns_domains = ["facebook", "instagram", "linkedin"]
+        if any(domain in from_email_lower for domain in sns_domains):
+            if re.search(r"님이.*(올렸|공유|댓글|좋아요|팔로우|추가|업데이트|게시|반응|참여|추천|등록|시작|변경|남김|보냄|작성|생성|수정|참석|초대|가입|나감|나갔|받음|보냄|공유함|공유했|올림|올렸음|올렸어요|올렸습니다)", text):
+                return "SNS"
         
         # 소셜 미디어 알림 패턴 (광고로 분류) - 우선 체크
         social_media_domains = [
@@ -566,6 +574,16 @@ class EmailClassifier:
             return "안내"
         
         # 시스템 알림/인증 메일 패턴 (안내로 분류)
+
+        # 채용 관련 키워드 분류
+        recruit_keywords = [
+            # 채용/구직 관련
+            "채용", "recruit", "recruitment", "입사지원", "지원서", "이력서", "면접", "합격", "불합격", "경력직", "신입", "경력", "공고", "구인", "구직", "job offer", "job opening", "job posting", "hiring", "position", "career", "application", "interview", "headhunter", "스카우트", "포지션 제안", "포지션 안내", "포지션 추천", "채용공고", "채용안내", "채용추천", "채용정보", "입사", "퇴사", "이직", "전직", "구직자", "구인광고", "구직광고",
+            # 대기업/유명기업 키워드
+            "삼성", "samsung", "아마존", "amazon", "구글", "google", "현대", "hyundai", "lg", "엘지", "네이버", "naver", "카카오", "kakao", "sk", "롯데", "lotte", "cj", "포스코", "posco", "한화", "hanwha", "신세계", "shinsegae", "kt", "kt corp", "두산", "doosan", "gs", "gs칼텍스", "셀트리온", "celltrion", "넷마블", "netmarble", "엔씨소프트", "ncsoft", "쿠팡", "coupang", "배달의민족", "우아한형제들", "라인", "line", "토스", "toss", "비바리퍼블리카", "카카오뱅크", "kakaobank", "카카오페이", "kakaopay"
+        ]
+        if any(kw in text for kw in recruit_keywords):
+            return "채용"
         system_patterns = [
             "비밀번호 생성", "인증", "로그인", "계정", "보안",
             "생성되었습니다", "변경되었습니다", "등록되었습니다",
@@ -1087,9 +1105,26 @@ class TodoApp:
 
         self.create_widgets()
         self.update_status_with_settings()
-        # 알림 타이머 시작
+        self.populate_tree()
+        self.populate_todo_tree()
         self.noti_popup_window = None
         self.start_todo_notification_timer()
+        # 5분마다 메일 자동 fetch 타이머 시작
+        self.start_email_fetch_timer()
+        # DB 초기화 및 최초 로드
+        init_email_db()
+        self.emails_data = load_emails_from_db()
+        # 환경설정값(아이디/비밀번호/서버)이 없으면 환경설정 창을 띄워 설정하도록 유도
+        if not (self.settings.get("username") and self.settings.get("password") and self.settings.get("mail_server")):
+            messagebox.showinfo("환경설정 필요", "이메일 계정 및 서버 정보를 먼저 입력해야 합니다.")
+            self.open_settings()
+        # 로컬 DB에 메일이 없으면 환경설정값으로 서버에서 최초 fetch
+        elif not self.emails_data:
+            if self.settings.get("username"):
+                self.username_var.set(self.settings.get("username"))
+            if self.settings.get("password"):
+                self.password_var.set(self.settings.get("password"))
+            self.fetch_emails_handler(auto=True)
 
     def start_todo_notification_timer(self):
         interval_min = self.settings.get("noti_interval", 30)
@@ -1368,43 +1403,44 @@ class TodoApp:
             # 기본값
             return MAIL_PRESETS["KSD 메일"]
     
-    def fetch_emails_handler(self):
+    def fetch_emails_handler(self, auto=False):
         username = self.username_var.get().strip()
         password = self.password_var.get().strip()
-        
         if not username or not password:
-            messagebox.showwarning("입력 오류", "사용자명과 비밀번호를 입력하세요.")
+            if not auto:
+                messagebox.showwarning("입력 오류", "사용자명과 비밀번호를 입력하세요.")
             return
-        
-        # Get mail configuration
         mail_config = self.get_mail_config()
-        
         if not mail_config["host"]:
-            messagebox.showerror("설정 오류", "메일 서버 호스트가 설정되지 않았습니다.\n환경설정에서 서버를 설정하세요.")
+            if not auto:
+                messagebox.showerror("설정 오류", "메일 서버 호스트가 설정되지 않았습니다.\n환경설정에서 서버를 설정하세요.")
             return
-        
         server_name = self.settings.get("mail_server", "KSD 메일")
         days = self.settings.get("days_lookback", 7)
-        
         self.status_label.config(text=f"이메일 가져오는 중... ({server_name})")
         self.root.update()
-        
         try:
             self.emails_data = fetch_emails(
-                username, 
-                password, 
-                mail_config["host"], 
-                mail_config["port"], 
-                mail_config["use_ssl"],
-                days
+                username, password,
+                mail_config["host"], mail_config["port"], mail_config["use_ssl"], days
             )
+            save_emails_to_db(self.emails_data)
             self.populate_tree()
             self.populate_todo_tree()
-            self.status_label.config(text=f"{server_name}에서 {len(self.emails_data)}개의 이메일을 가져왔습니다.")
-            messagebox.showinfo("성공", f"{len(self.emails_data)}개의 이메일을 가져왔습니다.")
+            self.status_label.config(text=f"{server_name}에서 {len(self.emails_data)}개의 이메일을 가져와 DB에 저장했습니다.")
+            if not auto:
+                messagebox.showinfo("성공", f"{len(self.emails_data)}개의 이메일을 가져와 DB에 저장했습니다.")
         except Exception as e:
             self.status_label.config(text="오류 발생")
-            messagebox.showerror("오류", f"이메일 가져오기 실패:\n{str(e)}\n\n팁: 사내 메일은 IMAP 포트/보안장비 정책도 확인 필요합니다.")
+            if not auto:
+                messagebox.showerror("오류", f"이메일 가져오기 실패:\n{str(e)}\n\n팁: 사내 메일은 IMAP 포트/보안장비 정책도 확인 필요합니다.")
+    
+    def start_email_fetch_timer(self):
+        self.root.after(300000, self.fetch_emails_periodic)  # 5분
+
+    def fetch_emails_periodic(self):
+        self.fetch_emails_handler(auto=True)
+        self.start_email_fetch_timer()
     
     def populate_todo_tree(self):
         """할일 목록 트리 업데이트"""
@@ -1635,6 +1671,7 @@ class TodoApp:
         item = selection[0]
         idx = int(self.tree.item(item, "text")) - 1
         due_date_str = self.due_date_entry.get().strip()
+
         
         if not due_date_str:
             messagebox.showwarning("입력 오류", "마감일을 MM/DD 형식으로 입력하세요.\n예: 11/30")
@@ -1668,6 +1705,7 @@ class TodoApp:
             values = list(self.tree.item(item, "values"))
             _, remaining_str = calculate_days_remaining(due_date)
             values[1] = f"{due_date.strftime('%m/%d')} {remaining_str}"
+
             self.tree.item(item, values=values)
             
             # 라벨 업데이트
@@ -1861,64 +1899,13 @@ class TodoApp:
             ttk.Button(button_frame, text="닫기", command=detail_window.destroy).pack(side="right")
 
 
-# =====================================================
-# Main
-# =====================================================
-
-
-from ttkthemes import ThemedTk
-import os
-
 if __name__ == "__main__":
-    # ThemedTk로 테마 적용 (yaru)
-    root = ThemedTk(theme="yaru")
-
-    # BMJUA_ttf.ttf 폰트 family명 자동 감지 및 전체 적용
-    font_path = os.path.join(os.path.dirname(__file__), "BMDOHYEON_ttf.ttf")
     try:
-        # 윈도우에서 ttf 직접 로드
-        if os.name == "nt":
-            import ctypes
-            FR_PRIVATE = 0x10
-            ctypes.windll.gdi32.AddFontResourceExW(font_path, FR_PRIVATE, 0)
-
-        # 사용 가능한 폰트 family명 목록 확인
-        available_fonts = list(tkfont.families(root))
-        print("[DEBUG] 사용 가능한 폰트 family명:")
-        for fam in sorted(available_fonts):
-            print(fam)
-        # 나눔스퀘어(NanumSquare) family명으로 강제 지정
-        nanum_family = 'NanumSquare'
-        print(f"[DEBUG] 폰트 family명 강제 적용: {nanum_family}")
-
-        # Tkinter 기본 폰트 전체 변경
-        for font_name in ["TkDefaultFont", "TkTextFont", "TkMenuFont", "TkHeadingFont", "TkCaptionFont", "TkSmallCaptionFont", "TkIconFont", "TkTooltipFont"]:
-            root.tk.call("font", "configure", font_name, "-family", nanum_family, "-size", 11)
-
-        # ttk 위젯에도 폰트 강제 적용
-        style = ttk.Style(root)
-        style.configure("TLabel", font=(nanum_family, 11))
-        style.configure("TButton", font=(nanum_family, 11))
-        style.configure("TEntry", font=(nanum_family, 11))
-        style.configure("TMenubutton", font=(nanum_family, 11))
-        style.configure("Treeview", font=(nanum_family, 11))
-        style.configure("TNotebook", font=(nanum_family, 11))
-        style.configure("TNotebook.Tab", font=(nanum_family, 11))
-        style.configure("TCombobox", font=(nanum_family, 11))
-        style.configure("TCheckbutton", font=(nanum_family, 11))
-        style.configure("TRadiobutton", font=(nanum_family, 11))
-        style.configure("TFrame", font=(nanum_family, 11))
-        style.configure("TLabelframe", font=(nanum_family, 11))
-        style.configure("TSeparator", font=(nanum_family, 11))
-        style.configure("TScrollbar", font=(nanum_family, 11))
-        style.configure("TProgressbar", font=(nanum_family, 11))
-        style.configure("TScale", font=(nanum_family, 11))
-        style.configure("TPanedwindow", font=(nanum_family, 11))
-        style.configure("TSpinbox", font=(nanum_family, 11))
-        style.configure("TSizegrip", font=(nanum_family, 11))
-        print(f"[DEBUG] 폰트 family명 강제 적용: {nanum_family}")
+        root = tk.Tk()  # 또는 ThemedTk(theme="yaru")
+        app = TodoApp(root)
+        root.mainloop()
     except Exception as e:
-        print(f"BMJUA 폰트 적용 실패: {e}")
-
-    app = TodoApp(root)
-    root.mainloop()
+        import traceback
+        print("예외 발생:", e)
+        traceback.print_exc()
+        tk.messagebox.showerror("오류", str(e))

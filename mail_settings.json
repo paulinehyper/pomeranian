@@ -1,0 +1,10 @@
+{
+  "mail_server": "Naver",
+  "custom_host": "",
+  "custom_port": 993,
+  "custom_ssl": true,
+  "days_lookback": 7,
+  "noti_interval": 1,
+  "username": "rhvhffls",
+  "password": "YLGEJM6TXXET"
+}
