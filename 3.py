@@ -1043,6 +1043,71 @@ class SettingsDialog:
 # =====================================================
 
 class TodoApp:
+    def show_sticky_widget(self):
+        # 이미 위젯이 떠 있으면 포커스만
+        if hasattr(self, 'sticky_widget') and self.sticky_widget.winfo_exists():
+            self.sticky_widget.lift()
+            self.sticky_widget.focus_force()
+            return
+        self.sticky_widget = tk.Toplevel(self.root)
+        self.sticky_widget.title("할일 스티커 위젯")
+        self.sticky_widget.geometry("320x420+40+40")
+        self.sticky_widget.attributes("-topmost", True)
+        self.sticky_widget.resizable(False, False)
+        self.sticky_widget.configure(bg="#f7f7e7")
+        # 윈도우 스티커 메모 느낌의 테두리/그림자(간단히 색상만)
+        outer = tk.Frame(self.sticky_widget, bg="#f7f7e7", bd=2, relief="ridge")
+        outer.pack(fill="both", expand=True, padx=6, pady=6)
+        # 헤더
+        header = tk.Frame(outer, bg="#f7f7e7")
+        header.pack(fill="x")
+        tk.Label(header, text="📝 할일 스티커", font=("Segoe UI", 13, "bold"), bg="#f7f7e7", fg="#444").pack(side="left", padx=(2,0))
+        close_btn = tk.Button(header, text="✕", command=self.sticky_widget.destroy, bg="#f7f7e7", bd=0, fg="#888", font=("Segoe UI", 11, "bold"), activebackground="#f7f7e7", activeforeground="#c00")
+        close_btn.pack(side="right")
+        # 카드 목록 영역
+        card_area = tk.Frame(outer, bg="#f7f7e7")
+        card_area.pack(fill="both", expand=True, pady=(8,0))
+        # 미완료 할일만 카드로 표시
+        todos = [e for e in self.emails_data if e.get("category") in TODO_CATEGORIES and not e.get("is_completed", False)]
+        if not todos:
+            tk.Label(card_area, text="미완료 할일이 없습니다!", bg="#f7f7e7", fg="#aaa", font=("Segoe UI", 11)).pack(pady=30)
+        for todo in todos:
+            card = tk.Frame(card_area, bg="#fffbe6", bd=1, relief="solid", highlightbackground="#e0dca0", highlightthickness=1)
+            card.pack(fill="x", padx=4, pady=7)
+            title = f"[{todo.get('category','')}] {todo.get('subject','')[:24]}"
+            tk.Label(card, text=title, bg="#fffbe6", fg="#222", font=("Segoe UI", 10, "bold"), anchor="w").pack(fill="x", padx=8, pady=(6,0))
+            preview = todo.get('body','').strip().replace('\r','').replace('\n',' ')
+            if len(preview) > 40:
+                preview = preview[:40] + "..."
+            tk.Label(card, text=preview, bg="#fffbe6", fg="#666", font=("Segoe UI", 9), anchor="w", wraplength=260, justify="left").pack(fill="x", padx=8, pady=(0,6))
+            btn_frame = tk.Frame(card, bg="#fffbe6")
+            btn_frame.pack(fill="x", padx=8, pady=(0,6))
+            # 처리완료 버튼
+            def mark_done(t=todo, c=card):
+                t['is_completed'] = True
+                save_emails_to_db(self.emails_data)
+                c.destroy()
+                # 카드가 모두 없어지면 안내 문구 표시
+                if not any(e for e in self.emails_data if e.get("category") in TODO_CATEGORIES and not e.get("is_completed", False)):
+                    for widget in card_area.winfo_children():
+                        widget.destroy()
+                    tk.Label(card_area, text="미완료 할일이 없습니다!", bg="#f7f7e7", fg="#aaa", font=("Segoe UI", 11)).pack(pady=30)
+            tk.Button(btn_frame, text="처리완료", font=("Segoe UI", 9), bg="#e0ffd7", fg="#008000", bd=0, cursor="hand2",
+                      command=mark_done).pack(side="right", padx=(4,0))
+            # 상세보기 버튼
+            tk.Button(btn_frame, text="상세보기", font=("Segoe UI", 9), bg="#f7f7e7", fg="#0078d7", bd=0, cursor="hand2",
+                      command=lambda t=todo: self._show_detail_window(t)).pack(side="right", padx=(0,4))
+        # 창 이동(드래그) 지원
+        def start_move(event):
+            self._sticky_drag_data = (event.x, event.y)
+        def do_move(event):
+            dx, dy = self._sticky_drag_data
+            x = self.sticky_widget.winfo_x() + event.x - dx
+            y = self.sticky_widget.winfo_y() + event.y - dy
+            self.sticky_widget.geometry(f"+{x}+{y}")
+        header.bind('<Button-1>', start_move)
+        header.bind('<B1-Motion>', do_move)
+
     def setup_tray_icon(self):
         # img.png를 트레이 아이콘으로 사용
         icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img.png")
@@ -1312,6 +1377,11 @@ class TodoApp:
         settings_menu.add_command(label="환경설정", command=self.open_settings)
         settings_menu.add_separator()
         settings_menu.add_command(label="종료", command=self.root.quit)
+
+        # 스티커 위젯 메뉴
+        widget_menu = tk.Menu(menubar, tearoff=0)
+        menubar.add_cascade(label="위젯", menu=widget_menu)
+        widget_menu.add_command(label="할일 스티커 열기", command=self.show_sticky_widget)
 
         # Modernized 로그인 카드형 중앙 배치
         self.login_card = ttk.LabelFrame(self.root, text="IMAP 로그인", padding=10, borderwidth=0, relief="flat")
