@@ -19,9 +19,15 @@ def init_email_db():
             full_text TEXT,
             category TEXT,
             due_date TEXT,
-            is_completed INTEGER DEFAULT 0
+            is_completed INTEGER DEFAULT 0,
+            mail_url TEXT
         )
     ''')
+    # 기존 DB에 mail_url 컬럼이 없으면 추가
+    try:
+        c.execute('ALTER TABLE emails ADD COLUMN mail_url TEXT')
+    except Exception:
+        pass
     conn.commit()
     conn.close()
 
@@ -31,8 +37,8 @@ def save_emails_to_db(email_list):
     c = conn.cursor()
     for email in email_list:
         c.execute('''
-            INSERT OR REPLACE INTO emails (msg_id, subject, subject_norm, sender, date_header, body, full_text, category, due_date, is_completed)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT OR REPLACE INTO emails (msg_id, subject, subject_norm, sender, date_header, body, full_text, category, due_date, is_completed, mail_url)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             email.get('msg_id'),
             email.get('subject'),
@@ -43,7 +49,8 @@ def save_emails_to_db(email_list):
             email.get('full_text'),
             email.get('category'),
             email.get('due_date').strftime('%Y-%m-%d') if email.get('due_date') else None,
-            int(email.get('is_completed', False))
+            int(email.get('is_completed', False)),
+            email.get('mail_url')
         ))
     conn.commit()
     conn.close()
@@ -52,7 +59,7 @@ def load_emails_from_db():
     db_path = get_db_path()
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
-    c.execute('SELECT msg_id, subject, subject_norm, sender, date_header, body, full_text, category, due_date, is_completed FROM emails')
+    c.execute('SELECT msg_id, subject, subject_norm, sender, date_header, body, full_text, category, due_date, is_completed, mail_url FROM emails')
     rows = c.fetchall()
     conn.close()
     emails = []
@@ -67,6 +74,7 @@ def load_emails_from_db():
             'full_text': row[6],
             'category': row[7],
             'due_date': datetime.strptime(row[8], '%Y-%m-%d').date() if row[8] else None,
-            'is_completed': bool(row[9])
+            'is_completed': bool(row[9]),
+            'mail_url': row[10]
         })
     return emails

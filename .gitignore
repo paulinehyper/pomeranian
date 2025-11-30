@@ -19,10 +19,17 @@ ENV/
 .DS_Store
 Thumbs.db
 
-#
-.zip
+# Fonts and binaries
+
+
+*.woff
+*.woff2
+
 # Logs
 *.log
+
+# 대용량 폰트/압축 파일 제외
+.zip
 
 # Env files
 .env
