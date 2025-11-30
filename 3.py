@@ -1050,7 +1050,7 @@ class TodoApp:
             self.sticky_widget.focus_force()
             return
         self.sticky_widget = tk.Toplevel(self.root)
-        self.sticky_widget.title("할일 스티커 위젯")
+        self.sticky_widget.overrideredirect(True)  # 시스템 창 프레임/제목줄 숨김
         self.sticky_widget.geometry("320x420+40+40")
         self.sticky_widget.attributes("-topmost", True)
         self.sticky_widget.resizable(False, False)
