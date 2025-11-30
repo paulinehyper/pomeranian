@@ -1771,6 +1771,30 @@ class TodoApp:
         
         # Enter 키로 저장
         category_entry.bind("<Return>", lambda e: save_new_category())
+    def delete_category(self):
+        """선택한 카테고리 삭제"""
+        current_cat = self.category_var.get()
+        if not current_cat:
+            messagebox.showwarning("선택 없음", "삭제할 카테고리를 선택하세요.")
+            return
+        if current_cat in DEFAULT_CATEGORIES:
+            messagebox.showwarning("삭제 불가", "기본 카테고리는 삭제할 수 없습니다.")
+            return
+        if current_cat not in self.categories:
+            messagebox.showwarning("존재하지 않음", "해당 카테고리가 목록에 없습니다.")
+            return
+        # 실제로 사용 중인 메일이 있으면 삭제 불가
+        used = any(e.get("category") == current_cat for e in self.emails_data)
+        if used:
+            messagebox.showwarning("삭제 불가", "해당 카테고리가 할당된 메일이 있어 삭제할 수 없습니다.")
+            return
+        if messagebox.askyesno("카테고리 삭제", f"'{current_cat}' 카테고리를 정말 삭제하시겠습니까?"):
+            self.categories.remove(current_cat)
+            save_categories(self.categories)
+            self.category_combo['values'] = self.categories
+            self.category_var.set("")
+            messagebox.showinfo("삭제 완료", f"'{current_cat}' 카테고리가 삭제되었습니다.")
+        ttk.Button(category_frame, text="카테고리 삭제", command=self.delete_category, width=15).pack(pady=(0, 5))
     
     def on_todo_select(self, event):
         """할일 목록 선택 이벤트"""
