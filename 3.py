@@ -1054,49 +1054,50 @@ class TodoApp:
         self.sticky_widget.geometry("320x420+40+40")
         self.sticky_widget.attributes("-topmost", True)
         self.sticky_widget.resizable(False, False)
-        self.sticky_widget.configure(bg="#f7f7e7")
+        self.sticky_widget.configure(bg="#FFE609")
         # 윈도우 스티커 메모 느낌의 테두리/그림자(간단히 색상만)
-        outer = tk.Frame(self.sticky_widget, bg="#f7f7e7", bd=2, relief="ridge")
+        outer = tk.Frame(self.sticky_widget, bg="#FFE609", bd=0, relief="flat")
         outer.pack(fill="both", expand=True, padx=6, pady=6)
         # 헤더
-        header = tk.Frame(outer, bg="#f7f7e7")
+        header = tk.Frame(outer, bg="#FFE609")
         header.pack(fill="x")
-        tk.Label(header, text="📝 할일 스티커", font=("Segoe UI", 13, "bold"), bg="#f7f7e7", fg="#444").pack(side="left", padx=(2,0))
-        close_btn = tk.Button(header, text="✕", command=self.sticky_widget.destroy, bg="#f7f7e7", bd=0, fg="#888", font=("Segoe UI", 11, "bold"), activebackground="#f7f7e7", activeforeground="#c00")
+        tk.Label(header, text="To-do", font=("나눔스퀘어", 13), fg="#373737", bg="#FFE609").pack(side="left", padx=(2,0))
+        close_btn = tk.Button(header, text="✕", command=self.sticky_widget.destroy, bd=0, bg="#FFE609", fg="#373737", font=("NanumSquare", 11), activebackground="#ffff2b", activeforeground="#ffffff")
         close_btn.pack(side="right")
         # 카드 목록 영역
-        card_area = tk.Frame(outer, bg="#f7f7e7")
+        card_area = tk.Frame(outer, bg="#FFE609")
         card_area.pack(fill="both", expand=True, pady=(8,0))
         # 미완료 할일만 카드로 표시
         todos = [e for e in self.emails_data if e.get("category") in TODO_CATEGORIES and not e.get("is_completed", False)]
         if not todos:
-            tk.Label(card_area, text="미완료 할일이 없습니다!", bg="#f7f7e7", fg="#aaa", font=("Segoe UI", 11)).pack(pady=30)
+            tk.Label(card_area, text="미완료 할일이 없습니다!", bg="#fcfa87", fg="#aaa", font=("NanumSquare", 11)).pack(pady=30)
         for todo in todos:
-            card = tk.Frame(card_area, bg="#fffbe6", bd=1, relief="solid", highlightbackground="#e0dca0", highlightthickness=1)
+            card = tk.Frame(card_area, bg="#fcfa87", bd=0, relief="flat", highlightbackground="#ffe066", highlightthickness=0)
             card.pack(fill="x", padx=4, pady=7)
             title = f"[{todo.get('category','')}] {todo.get('subject','')[:24]}"
-            tk.Label(card, text=title, bg="#fffbe6", fg="#222", font=("Segoe UI", 10, "bold"), anchor="w").pack(fill="x", padx=8, pady=(6,0))
+            tk.Label(card, text=title, bg="#fcfa87", fg="#222", font=("NanumSquare", 10, "bold"), anchor="w").pack(fill="x", padx=8, pady=(6,0))
             preview = todo.get('body','').strip().replace('\r','').replace('\n',' ')
             if len(preview) > 40:
                 preview = preview[:40] + "..."
-            tk.Label(card, text=preview, bg="#fffbe6", fg="#666", font=("Segoe UI", 9), anchor="w", wraplength=260, justify="left").pack(fill="x", padx=8, pady=(0,6))
-            btn_frame = tk.Frame(card, bg="#fffbe6")
-            btn_frame.pack(fill="x", padx=8, pady=(0,6))
-            # 처리완료 버튼
-            def mark_done(t=todo, c=card):
-                t['is_completed'] = True
-                save_emails_to_db(self.emails_data)
+            tk.Label(card, text=preview, bg="#fcfa87", fg="#666", font=("NanumSquare", 9), anchor="w", wraplength=260, justify="left").pack(fill="x", padx=8, pady=(0,6))
+            def delete_todo(t=todo, c=card):
+                # 삭제 확인 팝업
+                if not messagebox.askyesno("할일 완료 처리", "정말 이 할일을 완료(삭제)하시겠습니까?\n\n완료된 할일은 할일 목록에서 취소선과 함께 표시됩니다."):
+                    return
+                # 완료 처리 (is_completed=True)
+                if t in self.emails_data:
+                    t["is_completed"] = True
+                    save_emails_to_db(self.emails_data)
                 c.destroy()
-                # 카드가 모두 없어지면 안내 문구 표시
+                # 카드 영역에 미완료 할일 없으면 안내문구
                 if not any(e for e in self.emails_data if e.get("category") in TODO_CATEGORIES and not e.get("is_completed", False)):
                     for widget in card_area.winfo_children():
                         widget.destroy()
-                    tk.Label(card_area, text="미완료 할일이 없습니다!", bg="#f7f7e7", fg="#aaa", font=("Segoe UI", 11)).pack(pady=30)
-            tk.Button(btn_frame, text="처리완료", font=("Segoe UI", 9), bg="#e0ffd7", fg="#008000", bd=0, cursor="hand2",
-                      command=mark_done).pack(side="right", padx=(4,0))
-            # 상세보기 버튼
-            tk.Button(btn_frame, text="상세보기", font=("Segoe UI", 9), bg="#f7f7e7", fg="#0078d7", bd=0, cursor="hand2",
-                      command=lambda t=todo: self._show_detail_window(t)).pack(side="right", padx=(0,4))
+                    tk.Label(card_area, text="미완료 할일이 없습니다!", bg="#f7f7e7", fg="#aaa", font=("NanumSquare", 11)).pack(pady=30)
+                # 메인창 트리뷰 갱신
+                self.populate_todo_tree()
+            check_btn = tk.Button(card, text="✔", command=lambda t=todo, c=card: delete_todo(t, c),  bg="#fcfa87", fg="#404040", font=("NanumSquare", 13, "bold"), bd=0, activebackground="#fcfa87", activeforeground="#ffffff", cursor="hand2")
+            check_btn.pack(anchor="e", padx=10, pady=(0,4))
         # 창 이동(드래그) 지원
         def start_move(event):
             self._sticky_drag_data = (event.x, event.y)
@@ -1130,16 +1131,16 @@ class TodoApp:
 
     def open_settings_from_tray(self, icon=None, item=None):
         def show_settings():
-            # 메인창이 숨겨져 있으면 먼저 띄움
-            if not self.root.winfo_viewable():
-                self._show_main_window()
-            # 이미 설정창이 떠 있으면 포커스만
-            for w in self.root.winfo_children():
-                if isinstance(w, tk.Toplevel) and w.title() == "환경설정":
-                    w.lift()
-                    w.focus_force()
-                    return
-            self.open_settings()
+            if hasattr(self, 'sticky_widget') and self.sticky_widget.winfo_exists():
+                if not self.root.winfo_viewable():
+                    self._show_main_window()
+                # 이미 설정창이 떠 있으면 포커스만
+                for w in self.root.winfo_children():
+                    if isinstance(w, tk.Toplevel) and w.title() == "환경설정":
+                        w.lift()
+                        w.focus_force()
+                        return
+                self.open_settings()
         self.root.after(0, show_settings)
 
     def exit_app(self, icon=None, item=None):
@@ -1181,19 +1182,16 @@ class TodoApp:
         # 나눔스퀘어 폰트 파일 경로
         import os
         nanum_font_dir = os.path.join(os.path.dirname(__file__), "nanum-all_new", "나눔 글꼴", "나눔스퀘어", "NanumFontSetup_TTF_SQUARE")
-        nanum_regular = os.path.join(nanum_font_dir, "NanumSquareR.ttf")
         nanum_light = os.path.join(nanum_font_dir, "NanumSquareL.ttf")
-        nanum_eb = os.path.join(nanum_font_dir, "NanumSquareEB.ttf")
-        # 윈도우에 폰트 리소스 등록
+        # NanumSquareL.ttf(라이트체)만 윈도우에 폰트 리소스 등록
         try:
             import ctypes
-            for font_path in [nanum_regular, nanum_light, nanum_eb]:
-                if os.path.exists(font_path):
-                    ctypes.windll.gdi32.AddFontResourceW(font_path)
+            if os.path.exists(nanum_light):
+                ctypes.windll.gdi32.AddFontResourceW(nanum_light)
         except Exception as e:
-            print("[경고] 폰트 리소스 직접 등록 실패:", e)
+            print("[경고] NanumSquareL.ttf 폰트 리소스 등록 실패:", e)
 
-        # 폰트 객체 생성 (bold 제거)
+        # NanumSquareL.ttf(라이트체)만 사용하도록 폰트 객체 생성
         import tkinter.font as tkfont
         try:
             self.default_font = tkfont.Font(family="NanumSquare", size=10)
@@ -1201,7 +1199,7 @@ class TodoApp:
             self.large_font = tkfont.Font(family="NanumSquare", size=12)
             self.root.option_add("*Font", self.default_font)
         except Exception as e:
-            print("[경고] 나눔스퀘어 폰트 적용 실패:", e)
+            print("[경고] NanumSquareL.ttf 폰트 적용 실패:", e)
 
         # ===== img.png를 앱 아이콘으로 적용 =====
         try:
@@ -1267,7 +1265,7 @@ class TodoApp:
         self.populate_tree()
         self.populate_todo_tree()
         self.noti_popup_window = None
-        self.start_todo_notification_timer()
+        # self.start_todo_notification_timer()  # 미처리할일 알림 비활성화
         # 5분마다 메일 자동 fetch 타이머 시작
         self.start_email_fetch_timer()
         # DB 초기화 및 최초 로드
@@ -1287,85 +1285,20 @@ class TodoApp:
             self.fetch_emails_handler(auto=True)
 
     def start_todo_notification_timer(self):
-        interval_min = self.settings.get("noti_interval", 30)
-        interval_ms = max(1, int(interval_min)) * 60 * 1000
-        self.root.after(interval_ms, self.show_todo_notification)
+        # 미처리할일 알림 비활성화
+        pass
 
     def show_todo_notification(self):
-        # 미완료 할일 추출 (최신 메일부터)
-        todos = [e for e in self.emails_data if e.get("category") in TODO_CATEGORIES and not e.get("is_completed", False)]
-        # 최신 메일이 먼저 오도록 정렬 (received_date 기준, 없으면 맨 뒤)
-        todos.sort(key=lambda x: x.get("received_date") or 0, reverse=True)
-        if todos:
-            self._show_todo_sequence(todos)
-        else:
-            self.start_todo_notification_timer()
+        # 미처리할일 알림 비활성화
+        pass
 
     def _show_todo_sequence(self, todos, idx=0):
-        # 한 번에 한 개씩 알림, 10초 간격
-        if idx >= len(todos):
-            self.start_todo_notification_timer()
-            return
-        def on_close():
-            if self.noti_popup_window and self.noti_popup_window.winfo_exists():
-                self.noti_popup_window.destroy()
-            self.root.after(10000, lambda: self._show_todo_sequence(todos, idx+1))
-        self._show_popup([todos[idx]], idx+1, total=len(todos), on_close=on_close)
+        # 미처리할일 알림 비활성화
+        pass
 
     def _show_popup(self, msg, count, total=None, on_close=None):
-        # 기존 팝업 닫기
-        if self.noti_popup_window and self.noti_popup_window.winfo_exists():
-            self.noti_popup_window.destroy()
-        self.noti_popup_window = tk.Toplevel(self.root)
-        self.noti_popup_window.title("미처리 할일 알림")
-        self.noti_popup_window.resizable(False, False)
-        self.noti_popup_window.configure(bg="#f8fafc")
-        # on_close 콜백 지원
-        def close_popup():
-            if on_close:
-                on_close()
-            else:
-                self.noti_popup_window.destroy()
-            self.root.withdraw()
-        self.noti_popup_window.protocol("WM_DELETE_WINDOW", close_popup)
-        self.noti_popup_window.lift()
-        # 화면 우측 하단 배치
-        self.noti_popup_window.update_idletasks()
-        sw = self.noti_popup_window.winfo_screenwidth()
-        sh = self.noti_popup_window.winfo_screenheight()
-        w, h = 370, 180
-        x = sw - w - 20
-        y = sh - h - 60
-        self.noti_popup_window.geometry(f"{w}x{h}+{x}+{y}")
-        # 전체 프레임
-        outer = ttk.Frame(self.noti_popup_window, padding=0, style="Popup.Outer.TFrame")
-        outer.pack(fill="both", expand=True)
-        # 상단 카운트/아이콘
-        e = msg[0]
-        icon = "⏰" if e.get('due_date') else "✅"
-        count_str = f"{count}/{total}" if total else f"{count}"
-        top_frame = ttk.Frame(outer, style="Popup.Top.TFrame")
-        top_frame.pack(fill="x", pady=(8, 0), padx=16)
-        ttk.Label(top_frame, text=icon, font=("Segoe UI Emoji", 18)).pack(side="left")
-        ttk.Label(top_frame, text=f" {count_str}", font=("Segoe UI", 11, "bold"), foreground="#888").pack(side="left")
-        # 카드
-        card = ttk.Frame(outer, relief="ridge", borderwidth=2, padding=12, style="Card.TFrame")
-        card.pack(fill="both", expand=True, padx=20, pady=(8, 10))
-        # 제목/카테고리/마감일 강조
-        title = f"[{e.get('category','')}] {e.get('subject','')[:30]}"
-        if e.get('due_date'):
-            title += f" (마감: {e.get('due_date').strftime('%m/%d')})"
-        ttk.Label(card, text=title, font=("Segoe UI", 11, "bold"), anchor="w", foreground="#222").pack(fill="x", pady=(0,2))
-        # 본문 미리보기
-        preview = e.get('body','').strip().replace('\r','').replace('\n',' ')
-        if len(preview) > 60:
-            preview = preview[:60] + "..."
-        ttk.Label(card, text=preview, font=("Segoe UI", 9), anchor="w", foreground="#555").pack(fill="x", pady=(0,6))
-        # 버튼 프레임 제거(닫기 X만 남김)
-        style = ttk.Style()
-        style.configure("Card.TFrame", background="#fff8e1", bordercolor="#ffcccc")
-        style.configure("Popup.Outer.TFrame", background="#f8fafc")
-        style.configure("Popup.Top.TFrame", background="#f8fafc")
+        # 미처리할일 알림 비활성화
+        pass
     
     def create_widgets(self):
         # Menu bar
