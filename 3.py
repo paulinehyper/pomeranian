@@ -1654,6 +1654,8 @@ class TodoApp:
             self.status_label.config(text=f"{server_name}에서 {len(self.emails_data)}개의 이메일을 가져와 DB에 저장했습니다.")
             if not auto:
                 messagebox.showinfo("성공", f"{len(self.emails_data)}개의 이메일을 가져와 DB에 저장했습니다.")
+            # 메일 불러오기 직후 할일 스티커 자동 표시
+            self.show_sticky_widget()
         except Exception as e:
             self.status_label.config(text="오류 발생")
             if not auto:
