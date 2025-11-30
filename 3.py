@@ -1251,17 +1251,16 @@ class TodoApp:
         # 기존 팝업 닫기
         if self.noti_popup_window and self.noti_popup_window.winfo_exists():
             self.noti_popup_window.destroy()
-        # root를 deiconify하지 않고 팝업만 생성
         self.noti_popup_window = tk.Toplevel(self.root)
         self.noti_popup_window.title("미처리 할일 알림")
         self.noti_popup_window.resizable(False, False)
+        self.noti_popup_window.configure(bg="#f8fafc")
         # on_close 콜백 지원
         def close_popup():
             if on_close:
                 on_close()
             else:
                 self.noti_popup_window.destroy()
-            # 알림창 닫힐 때 root를 다시 숨김(실제로는 항상 숨김 상태)
             self.root.withdraw()
         self.noti_popup_window.protocol("WM_DELETE_WINDOW", close_popup)
         self.noti_popup_window.lift()
@@ -1269,28 +1268,39 @@ class TodoApp:
         self.noti_popup_window.update_idletasks()
         sw = self.noti_popup_window.winfo_screenwidth()
         sh = self.noti_popup_window.winfo_screenheight()
-        w, h = 340, 140
+        w, h = 370, 180
         x = sw - w - 20
         y = sh - h - 60
         self.noti_popup_window.geometry(f"{w}x{h}+{x}+{y}")
         # 전체 프레임
-        outer = ttk.Frame(self.noti_popup_window, padding=0)
+        outer = ttk.Frame(self.noti_popup_window, padding=0, style="Popup.Outer.TFrame")
         outer.pack(fill="both", expand=True)
-        # 카드 1개만 표시
+        # 상단 카운트/아이콘
         e = msg[0]
+        icon = "⏰" if e.get('due_date') else "✅"
+        count_str = f"{count}/{total}" if total else f"{count}"
+        top_frame = ttk.Frame(outer, style="Popup.Top.TFrame")
+        top_frame.pack(fill="x", pady=(8, 0), padx=16)
+        ttk.Label(top_frame, text=icon, font=("Segoe UI Emoji", 18)).pack(side="left")
+        ttk.Label(top_frame, text=f" {count_str}", font=("Segoe UI", 11, "bold"), foreground="#888").pack(side="left")
+        # 카드
         card = ttk.Frame(outer, relief="ridge", borderwidth=2, padding=12, style="Card.TFrame")
-        card.pack(fill="both", expand=True, padx=20, pady=(20, 10))
+        card.pack(fill="both", expand=True, padx=20, pady=(8, 10))
+        # 제목/카테고리/마감일 강조
         title = f"[{e.get('category','')}] {e.get('subject','')[:30]}"
         if e.get('due_date'):
             title += f" (마감: {e.get('due_date').strftime('%m/%d')})"
-        ttk.Label(card, text=title, font=self.default_font, anchor="w").pack(fill="x")
-        # 버튼 프레임(항상 하단 고정)
-        btn_frame = ttk.Frame(outer)
-        btn_frame.pack(side="bottom", pady=(0, 10))
-        ttk.Button(btn_frame, text="메인창 열기", command=lambda: [self._show_main_window(), self.noti_popup_window.lift()]).pack(side="left", padx=5)
-        ttk.Button(btn_frame, text="확인", command=close_popup).pack(side="left", padx=5)
+        ttk.Label(card, text=title, font=("Segoe UI", 11, "bold"), anchor="w", foreground="#222").pack(fill="x", pady=(0,2))
+        # 본문 미리보기
+        preview = e.get('body','').strip().replace('\r','').replace('\n',' ')
+        if len(preview) > 60:
+            preview = preview[:60] + "..."
+        ttk.Label(card, text=preview, font=("Segoe UI", 9), anchor="w", foreground="#555").pack(fill="x", pady=(0,6))
+        # 버튼 프레임 제거(닫기 X만 남김)
         style = ttk.Style()
         style.configure("Card.TFrame", background="#fff8e1", bordercolor="#ffcccc")
+        style.configure("Popup.Outer.TFrame", background="#f8fafc")
+        style.configure("Popup.Top.TFrame", background="#f8fafc")
     
     def create_widgets(self):
         # Menu bar
