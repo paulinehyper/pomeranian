@@ -1,3 +1,19 @@
+import sys
+def add_to_startup():
+    try:
+        import win32com.client
+        startup = os.path.join(os.environ["APPDATA"], r"Microsoft\Windows\Start Menu\Programs\Startup")
+        shortcut_path = os.path.join(startup, "이메일ToDo.lnk")
+        target = sys.executable  # 현재 파이썬 실행 파일(.venv\Scripts\python.exe)
+        script = os.path.abspath(__file__)
+        shell = win32com.client.Dispatch("WScript.Shell")
+        shortcut = shell.CreateShortcut(shortcut_path)
+        shortcut.TargetPath = target
+        shortcut.Arguments = f'"{script}"'
+        shortcut.WorkingDirectory = os.path.dirname(script)
+        shortcut.Save()
+    except Exception as e:
+        print(f"[시작프로그램 등록 실패] {e}")
 # -*- coding: utf-8 -*-
 """
 KSD 이메일 회신 To-Do 관리 (IMAP + GUI)
@@ -2066,6 +2082,7 @@ class TodoApp:
             ttk.Button(button_frame, text="닫기", command=detail_window.destroy).pack(side="right")
 
 try:
+    add_to_startup()
     root = tk.Tk()
     root.withdraw()
     app = TodoApp(root)
