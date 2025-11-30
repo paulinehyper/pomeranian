@@ -1074,27 +1074,53 @@ class TodoApp:
         for todo in todos:
             card = tk.Frame(card_area, bg="#fcfa87", bd=0, relief="flat", highlightbackground="#ffe066", highlightthickness=0)
             card.pack(fill="x", padx=4, pady=7)
-            title = f"[{todo.get('category','')}] {todo.get('subject','')[:24]}"
-            tk.Label(card, text=title, bg="#fcfa87", fg="#222", font=("NanumSquare", 10, "bold"), anchor="w").pack(fill="x", padx=8, pady=(6,0))
+            # 제목 Entry (카테고리+제목)
+            title_var = tk.StringVar(value=f"[{todo.get('category','')}] {todo.get('subject','')}")
+            def save_title(event=None, t=todo, v=title_var, entry=None):
+                # 제목에서 카테고리 부분 제거 후 subject만 저장
+                val = v.get()
+                if "] " in val:
+                    subject = val.split("] ", 1)[1]
+                else:
+                    subject = val
+                t["subject"] = subject
+                save_emails_to_db(self.emails_data)
+                if entry:
+                    entry.config(bg="#eaffc2")
+                    card.after(500, lambda: entry.config(bg="#fcfa87"))
+                self.populate_todo_tree()
+            title_entry = tk.Entry(card, textvariable=title_var, bg="#fcfa87", fg="#222", font=("NanumSquare", 10, "bold"), borderwidth=0, relief="flat", highlightthickness=0)
+            title_entry.pack(fill="x", padx=8, pady=(6,0))
+            title_entry.bind("<Return>", lambda e, t=todo, v=title_var, entry=title_entry: save_title(e, t, v, entry))
+            title_entry.bind("<FocusOut>", lambda e, t=todo, v=title_var, entry=title_entry: save_title(e, t, v, entry))
+            # 본문 Text (미리보기)
             preview = todo.get('body','').strip().replace('\r','').replace('\n',' ')
             if len(preview) > 40:
                 preview = preview[:40] + "..."
-            tk.Label(card, text=preview, bg="#fcfa87", fg="#666", font=("NanumSquare", 9), anchor="w", wraplength=260, justify="left").pack(fill="x", padx=8, pady=(0,6))
+            body_text = tk.Text(card, height=2, bg="#fcfa87", fg="#666", font=("NanumSquare", 9), wrap="word", borderwidth=0, relief="flat", highlightthickness=0)
+            body_text.insert("1.0", preview)
+            body_text.pack(fill="x", padx=8, pady=(0,6))
+            def save_body(event=None, t=todo, text_widget=None):
+                val = text_widget.get("1.0", "end").strip()
+                t["body"] = val
+                save_emails_to_db(self.emails_data)
+                if text_widget:
+                    text_widget.config(bg="#eaffc2")
+                    card.after(500, lambda: text_widget.config(bg="#fcfa87"))
+                self.populate_todo_tree()
+            body_text.bind("<FocusOut>", lambda e, t=todo, text_widget=body_text: save_body(e, t, text_widget))
+            # 완료(삭제) 버튼
             def delete_todo(t=todo, c=card):
-                # 삭제 확인 팝업
                 if not messagebox.askyesno("할일 완료 처리", "정말 이 할일을 완료(삭제)하시겠습니까?\n\n완료된 할일은 할일 목록에서 취소선과 함께 표시됩니다."):
                     return
-                # 완료 처리 (is_completed=True)
                 if t in self.emails_data:
                     t["is_completed"] = True
                     save_emails_to_db(self.emails_data)
                 c.destroy()
-                # 카드 영역에 미완료 할일 없으면 안내문구
                 if not any(e for e in self.emails_data if e.get("category") in TODO_CATEGORIES and not e.get("is_completed", False)):
                     for widget in card_area.winfo_children():
                         widget.destroy()
                     tk.Label(card_area, text="미완료 할일이 없습니다!", bg="#f7f7e7", fg="#aaa", font=("NanumSquare", 11)).pack(pady=30)
-                # 메인창 트리뷰 갱신
                 self.populate_todo_tree()
             check_btn = tk.Button(card, text="✔", command=lambda t=todo, c=card: delete_todo(t, c),  bg="#fcfa87", fg="#404040", font=("NanumSquare", 13, "bold"), bd=0, activebackground="#fcfa87", activeforeground="#ffffff", cursor="hand2")
             check_btn.pack(anchor="e", padx=10, pady=(0,4))
