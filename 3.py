@@ -23,6 +23,11 @@ from tkinter import ttk, messagebox
 import tkinter.font as tkfont
 from html import unescape  # HTML → 텍스트 변환용
 
+# 트레이 및 알림을 위한 외부 라이브러리
+import threading
+import pystray
+from PIL import Image
+
 # ML
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.naive_bayes import MultinomialNB
@@ -1022,6 +1027,47 @@ class SettingsDialog:
 # =====================================================
 
 class TodoApp:
+    def setup_tray_icon(self):
+        # img.png를 트레이 아이콘으로 사용
+        icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img.png")
+        image = Image.open(icon_path)
+        menu = (
+            pystray.MenuItem('메인창', self.show_main_window),
+            pystray.MenuItem('환경설정', self.open_settings_from_tray),
+            pystray.MenuItem('종료', self.exit_app)
+        )
+        self.tray_icon = pystray.Icon("pomeranian", image, "이메일 To-Do", menu)
+        threading.Thread(target=self.tray_icon.run, daemon=True).start()
+
+    def show_main_window(self, icon=None, item=None):
+        self.root.after(0, self._show_main_window)
+
+    def _show_main_window(self):
+        self.root.deiconify()
+        self.root.lift()
+        self.root.focus_force()
+
+    def open_settings_from_tray(self, icon=None, item=None):
+        def show_settings():
+            # 메인창이 숨겨져 있으면 먼저 띄움
+            if not self.root.winfo_viewable():
+                self._show_main_window()
+            # 이미 설정창이 떠 있으면 포커스만
+            for w in self.root.winfo_children():
+                if isinstance(w, tk.Toplevel) and w.title() == "환경설정":
+                    w.lift()
+                    w.focus_force()
+                    return
+            self.open_settings()
+        self.root.after(0, show_settings)
+
+    def exit_app(self, icon=None, item=None):
+        if hasattr(self, 'tray_icon'):
+            self.tray_icon.stop()
+        self.root.after(0, self.root.destroy)
+
+    def hide_to_tray(self):
+        self.root.withdraw()
     def _clear_placeholder(self, entry, placeholder):
         if entry.get() == placeholder:
             entry.delete(0, tk.END)
@@ -1044,6 +1090,10 @@ class TodoApp:
 
     def __init__(self, root):
         self.root = root
+        self.setup_tray_icon()
+        self.root.protocol("WM_DELETE_WINDOW", self.hide_to_tray)
+        # 앱 시작 시 메인창을 백그라운드(숨김)로 시작
+        self.root.withdraw()
         self.root.title("이메일 To-Do 관리")
         self.root.geometry("1100x700")
 
@@ -1144,8 +1194,9 @@ class TodoApp:
         self.emails_data = load_emails_from_db()
         # 환경설정값(아이디/비밀번호/서버)이 없으면 환경설정 창을 띄워 설정하도록 유도
         if not (self.settings.get("username") and self.settings.get("password") and self.settings.get("mail_server")):
-            messagebox.showinfo("환경설정 필요", "이메일 계정 및 서버 정보를 먼저 입력해야 합니다.")
-            self.open_settings()
+            # 메인창을 deiconify하지 않고, 설정창만 별도로 띄움
+            self.root.after(100, lambda: messagebox.showinfo("환경설정 필요", "이메일 계정 및 서버 정보를 먼저 입력해야 합니다."))
+            self.root.after(200, self.open_settings)
         # 로컬 DB에 메일이 없으면 환경설정값으로 서버에서 최초 fetch
         elif not self.emails_data:
             if self.settings.get("username"):
@@ -1160,42 +1211,70 @@ class TodoApp:
         self.root.after(interval_ms, self.show_todo_notification)
 
     def show_todo_notification(self):
-        # 미완료 할일 추출
+        # 미완료 할일 추출 (최신 메일부터)
         todos = [e for e in self.emails_data if e.get("category") in TODO_CATEGORIES and not e.get("is_completed", False)]
+        # 최신 메일이 먼저 오도록 정렬 (received_date 기준, 없으면 맨 뒤)
+        todos.sort(key=lambda x: x.get("received_date") or 0, reverse=True)
         if todos:
-            msg = "\n".join([
-                f"[{e.get('category','')}] {e.get('subject','')[:30]}" + (f" (마감: {e.get('due_date').strftime('%m/%d')})" if e.get('due_date') else "")
-                for e in todos[:5]
-            ])
-            self._show_popup(msg, len(todos))
-        # 다음 알림 예약
-        self.start_todo_notification_timer()
+            self._show_todo_sequence(todos)
+        else:
+            self.start_todo_notification_timer()
 
-    def _show_popup(self, msg, count):
+    def _show_todo_sequence(self, todos, idx=0):
+        # 한 번에 한 개씩 알림, 10초 간격
+        if idx >= len(todos):
+            self.start_todo_notification_timer()
+            return
+        def on_close():
+            if self.noti_popup_window and self.noti_popup_window.winfo_exists():
+                self.noti_popup_window.destroy()
+            self.root.after(10000, lambda: self._show_todo_sequence(todos, idx+1))
+        self._show_popup([todos[idx]], idx+1, total=len(todos), on_close=on_close)
+
+    def _show_popup(self, msg, count, total=None, on_close=None):
         # 기존 팝업 닫기
         if self.noti_popup_window and self.noti_popup_window.winfo_exists():
             self.noti_popup_window.destroy()
+        # root를 deiconify하지 않고 팝업만 생성
         self.noti_popup_window = tk.Toplevel(self.root)
         self.noti_popup_window.title("미처리 할일 알림")
-        self.noti_popup_window.attributes("-topmost", True)
         self.noti_popup_window.resizable(False, False)
-        self.noti_popup_window.geometry("300x180")
+        # on_close 콜백 지원
+        def close_popup():
+            if on_close:
+                on_close()
+            else:
+                self.noti_popup_window.destroy()
+            # 알림창 닫힐 때 root를 다시 숨김(실제로는 항상 숨김 상태)
+            self.root.withdraw()
+        self.noti_popup_window.protocol("WM_DELETE_WINDOW", close_popup)
+        self.noti_popup_window.lift()
         # 화면 우측 하단 배치
         self.noti_popup_window.update_idletasks()
         sw = self.noti_popup_window.winfo_screenwidth()
         sh = self.noti_popup_window.winfo_screenheight()
-        w, h = 300, 180
+        w, h = 340, 140
         x = sw - w - 20
         y = sh - h - 60
         self.noti_popup_window.geometry(f"{w}x{h}+{x}+{y}")
-        frame = ttk.Frame(self.noti_popup_window, padding=20)
-        frame.pack(fill="both", expand=True)
-        ttk.Label(frame, text=f"미처리 할일 {count}건", font=self.large_font, foreground="red").pack(pady=(0, 10))
-        text = tk.Text(frame, height=6, wrap="word", font=("", 10))
-        text.insert("1.0", msg)
-        text.config(state="disabled", bg="#fff8e1", relief="flat")
-        text.pack(fill="both", expand=True)
-        ttk.Button(frame, text="확인", command=self.noti_popup_window.destroy).pack(pady=(10, 0))
+        # 전체 프레임
+        outer = ttk.Frame(self.noti_popup_window, padding=0)
+        outer.pack(fill="both", expand=True)
+        # 카드 1개만 표시
+        e = msg[0]
+        card = ttk.Frame(outer, relief="ridge", borderwidth=2, padding=12, style="Card.TFrame")
+        card.pack(fill="both", expand=True, padx=20, pady=(20, 10))
+        title = f"[{e.get('category','')}] {e.get('subject','')[:30]}"
+        if e.get('due_date'):
+            title += f" (마감: {e.get('due_date').strftime('%m/%d')})"
+        ttk.Label(card, text=title, font=self.default_font, anchor="w").pack(fill="x")
+        # 버튼 프레임(항상 하단 고정)
+        btn_frame = ttk.Frame(outer)
+        btn_frame.pack(side="bottom", pady=(0, 10))
+        ttk.Button(btn_frame, text="메인창 열기", command=lambda: [self._show_main_window(), self.noti_popup_window.lift()]).pack(side="left", padx=5)
+        ttk.Button(btn_frame, text="확인", command=close_popup).pack(side="left", padx=5)
+        style = ttk.Style()
+        style.configure("Card.TFrame", background="#fff8e1", bordercolor="#ffcccc")
     
     def create_widgets(self):
         # Menu bar
@@ -1234,7 +1313,7 @@ class TodoApp:
             self.password_var.set(self.settings.get("password"))
             self._add_placeholder(self.username_entry, '사용자명')
             self._add_placeholder_pw(self.password_entry, '비밀번호')
-            self.root.after(500, self.fetch_emails_handler)
+            self.root.after(500, lambda: self.fetch_emails_handler(auto=True))
 
         # Main content area with notebook (tabs)
         self.notebook = ttk.Notebook(self.root)
@@ -1257,19 +1336,16 @@ class TodoApp:
         todo_list_frame.pack(side="left", fill="both", expand=True)
 
         todo_columns = ("상태", "카테고리", "마감일", "제목", "발신자")
-        self.todo_tree = ttk.Treeview(todo_list_frame, columns=todo_columns, show="tree headings", height=20)
-
-        self.todo_tree.heading("#0", text="번호")
-        self.todo_tree.column("#0", width=50)
+        self.todo_tree = ttk.Treeview(todo_list_frame, columns=todo_columns, show="headings", height=20)
 
         for col in todo_columns:
             self.todo_tree.heading(col, text=col)
-
-        self.todo_tree.column("상태", width=60)
-        self.todo_tree.column("카테고리", width=60)
-        self.todo_tree.column("마감일", width=150)
-        self.todo_tree.column("제목", width=350)
-        self.todo_tree.column("발신자", width=150)
+        # 모든 컬럼 가운데 정렬
+        self.todo_tree.column("상태", width=60, anchor="center")
+        self.todo_tree.column("카테고리", width=60, anchor="center")
+        self.todo_tree.column("마감일", width=150, anchor="center")
+        self.todo_tree.column("제목", width=350, anchor="center")
+        self.todo_tree.column("발신자", width=150, anchor="center")
 
         todo_scrollbar = ttk.Scrollbar(todo_list_frame, orient="vertical", command=self.todo_tree.yview)
         self.todo_tree.configure(yscrollcommand=todo_scrollbar.set)
@@ -1486,9 +1562,10 @@ class TodoApp:
             self.status_label.config(text="오류 발생")
             if not auto:
                 messagebox.showerror("오류", f"이메일 가져오기 실패:\n{str(e)}\n\n팁: 사내 메일은 IMAP 포트/보안장비 정책도 확인 필요합니다.")
+            # auto=True일 때는 팝업을 띄우지 않음(메인창이 자동으로 뜨는 현상 방지)
     
     def start_email_fetch_timer(self):
-        self.root.after(300000, self.fetch_emails_periodic)  # 5분
+        self.root.after(300000, self.fetch_emails_periodic)  #  5분
 
     def fetch_emails_periodic(self):
         self.fetch_emails_handler(auto=True)
@@ -1536,8 +1613,7 @@ class TodoApp:
                 due_date_str = "-"
             
             # 트리에 추가
-            item_id = self.todo_tree.insert("", "end", text=str(idx), 
-                                            values=(status, category, due_date_str, subject, from_))
+            item_id = self.todo_tree.insert("", "end", values=(status, category, due_date_str, subject, from_))
             
             # 완료된 항목은 회색으로
             if is_completed:
@@ -1867,9 +1943,11 @@ class TodoApp:
             return
         
         item = selection[0]
-        idx = int(self.todo_tree.item(item, "text")) - 1
-        
-        if 0 <= idx < len(self.emails_data):
+        values = self.todo_tree.item(item, "values")
+        # 제목과 발신자 기준으로 매칭
+        idx = next((i for i, e in enumerate(self.emails_data)
+                   if e.get("subject", "") == values[3] and e.get("from", "") == values[4]), -1)
+        if idx != -1:
             # TODO: 필요하면 전체 메일 탭과 연동
             pass
     
@@ -1881,12 +1959,12 @@ class TodoApp:
             return
         
         item = selection[0]
-        idx = int(self.todo_tree.item(item, "text")) - 1
-        
-        if 0 <= idx < len(self.emails_data):
+        values = self.todo_tree.item(item, "values")
+        idx = next((i for i, e in enumerate(self.emails_data)
+                   if e.get("subject", "") == values[3] and e.get("from", "") == values[4]), -1)
+        if idx != -1:
             email_data = self.emails_data[idx]
             email_data["is_completed"] = True
-            
             self.populate_todo_tree()
             messagebox.showinfo("완료", "할일이 완료 처리되었습니다.")
     
@@ -1898,12 +1976,12 @@ class TodoApp:
             return
         
         item = selection[0]
-        idx = int(self.todo_tree.item(item, "text")) - 1
-        
-        if 0 <= idx < len(self.emails_data):
+        values = self.todo_tree.item(item, "values")
+        idx = next((i for i, e in enumerate(self.emails_data)
+                   if e.get("subject", "") == values[3] and e.get("from", "") == values[4]), -1)
+        if idx != -1:
             email_data = self.emails_data[idx]
             email_data["is_completed"] = False
-            
             self.populate_todo_tree()
             messagebox.showinfo("변경", "할일이 미완료로 변경되었습니다.")
     
@@ -1915,11 +1993,11 @@ class TodoApp:
             return
         
         item = selection[0]
-        idx = int(self.todo_tree.item(item, "text")) - 1
-        
-        if 0 <= idx < len(self.emails_data):
+        values = self.todo_tree.item(item, "values")
+        idx = next((i for i, e in enumerate(self.emails_data)
+                   if e.get("subject", "") == values[3] and e.get("from", "") == values[4]), -1)
+        if idx != -1:
             email_data = self.emails_data[idx]
-            
             # 상세 정보 다이얼로그
             detail_window = tk.Toplevel(self.root)
             detail_window.title("할일 상세 정보")
@@ -1987,14 +2065,13 @@ class TodoApp:
             
             ttk.Button(button_frame, text="닫기", command=detail_window.destroy).pack(side="right")
 
-
-if __name__ == "__main__":
-    try:
-        root = tk.Tk()  # 또는 ThemedTk(theme="yaru")
-        app = TodoApp(root)
-        root.mainloop()
-    except Exception as e:
-        import traceback
-        print("예외 발생:", e)
-        traceback.print_exc()
-        tk.messagebox.showerror("오류", str(e))
+try:
+    root = tk.Tk()
+    root.withdraw()
+    app = TodoApp(root)
+    root.mainloop()
+except Exception as e:
+    import traceback
+    print("예외 발생:", e)
+    traceback.print_exc()
+    tk.messagebox.showerror("오류", str(e))
