@@ -90,7 +90,9 @@ DUE_KEYWORDS = [
     "deadline", "due", "회신", "요망", "필요"
 ]
 
-DEFAULT_CATEGORIES = ["제출", "안내", "검토", "광고"]
+TODO_CATEGORIES = ["제출", "검토"]
+NON_TODO_CATEGORIES = ["안내", "광고"]
+DEFAULT_CATEGORIES = TODO_CATEGORIES + NON_TODO_CATEGORIES
 DEADLINE_RELATED_CATEGORIES = ["제출"]
 
 # 카테고리 설명
@@ -1045,6 +1047,31 @@ class TodoApp:
         self.root.title("이메일 To-Do 관리")
         self.root.geometry("1100x700")
 
+        # 나눔스퀘어 폰트 파일 경로
+        import os
+        nanum_font_dir = os.path.join(os.path.dirname(__file__), "nanum-all_new", "나눔 글꼴", "나눔스퀘어", "NanumFontSetup_TTF_SQUARE")
+        nanum_regular = os.path.join(nanum_font_dir, "NanumSquareR.ttf")
+        nanum_light = os.path.join(nanum_font_dir, "NanumSquareL.ttf")
+        nanum_eb = os.path.join(nanum_font_dir, "NanumSquareEB.ttf")
+        # 윈도우에 폰트 리소스 등록
+        try:
+            import ctypes
+            for font_path in [nanum_regular, nanum_light, nanum_eb]:
+                if os.path.exists(font_path):
+                    ctypes.windll.gdi32.AddFontResourceW(font_path)
+        except Exception as e:
+            print("[경고] 폰트 리소스 직접 등록 실패:", e)
+
+        # 폰트 객체 생성 (bold 제거)
+        import tkinter.font as tkfont
+        try:
+            self.default_font = tkfont.Font(family="NanumSquare", size=10)
+            self.small_font = tkfont.Font(family="NanumSquare", size=8)
+            self.large_font = tkfont.Font(family="NanumSquare", size=12)
+            self.root.option_add("*Font", self.default_font)
+        except Exception as e:
+            print("[경고] 나눔스퀘어 폰트 적용 실패:", e)
+
         # ===== img.png를 앱 아이콘으로 적용 =====
         try:
             icon_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "img.png")
@@ -1134,7 +1161,7 @@ class TodoApp:
 
     def show_todo_notification(self):
         # 미완료 할일 추출
-        todos = [e for e in self.emails_data if e.get("category") in ["제출", "검토"] and not e.get("is_completed", False)]
+        todos = [e for e in self.emails_data if e.get("category") in TODO_CATEGORIES and not e.get("is_completed", False)]
         if todos:
             msg = "\n".join([
                 f"[{e.get('category','')}] {e.get('subject','')[:30]}" + (f" (마감: {e.get('due_date').strftime('%m/%d')})" if e.get('due_date') else "")
@@ -1163,7 +1190,7 @@ class TodoApp:
         self.noti_popup_window.geometry(f"{w}x{h}+{x}+{y}")
         frame = ttk.Frame(self.noti_popup_window, padding=20)
         frame.pack(fill="both", expand=True)
-        ttk.Label(frame, text=f"미처리 할일 {count}건", font=("", 12, "bold"), foreground="red").pack(pady=(0, 10))
+        ttk.Label(frame, text=f"미처리 할일 {count}건", font=self.large_font, foreground="red").pack(pady=(0, 10))
         text = tk.Text(frame, height=6, wrap="word", font=("", 10))
         text.insert("1.0", msg)
         text.config(state="disabled", bg="#fff8e1", relief="flat")
@@ -1229,7 +1256,7 @@ class TodoApp:
         todo_list_frame = ttk.LabelFrame(todo_container, text="할일 목록 (제출/검토)", padding=10, borderwidth=0, relief="flat")
         todo_list_frame.pack(side="left", fill="both", expand=True)
 
-        todo_columns = ("상태", "분류", "마감일", "제목", "발신자")
+        todo_columns = ("상태", "카테고리", "마감일", "제목", "발신자")
         self.todo_tree = ttk.Treeview(todo_list_frame, columns=todo_columns, show="tree headings", height=20)
 
         self.todo_tree.heading("#0", text="번호")
@@ -1239,7 +1266,7 @@ class TodoApp:
             self.todo_tree.heading(col, text=col)
 
         self.todo_tree.column("상태", width=60)
-        self.todo_tree.column("분류", width=60)
+        self.todo_tree.column("카테고리", width=60)
         self.todo_tree.column("마감일", width=150)
         self.todo_tree.column("제목", width=350)
         self.todo_tree.column("발신자", width=150)
@@ -1261,8 +1288,8 @@ class TodoApp:
         # 구분선은 borderwidth=0, relief='flat'으로 대체
         ttk.Separator(todo_action_frame, orient="horizontal").pack(fill="x", pady=10)
 
-        ttk.Label(todo_action_frame, text="할일 통계:", font=("", 9, "bold")).pack(anchor="w", pady=(0, 5))
-        self.todo_stats_label = ttk.Label(todo_action_frame, text="", font=("", 8), foreground="gray")
+        ttk.Label(todo_action_frame, text="할일 통계:", font=self.default_font).pack(anchor="w", pady=(0, 5))
+        self.todo_stats_label = ttk.Label(todo_action_frame, text="", font=self.small_font, foreground="gray")
         self.todo_stats_label.pack(anchor="w", fill="x")
 
         self.todo_tree.bind("<<TreeviewSelect>>", self.on_todo_select)
@@ -1277,7 +1304,7 @@ class TodoApp:
         list_frame.pack(side="left", fill="both", expand=True)
 
         # Treeview
-        columns = ("분류", "마감일", "제목", "발신자", "날짜")
+        columns = ("카테고리", "(To-Do)", "마감일", "제목", "발신자", "날짜")
         self.tree = ttk.Treeview(list_frame, columns=columns, show="tree headings", height=15)
         
         self.tree.heading("#0", text="번호")
@@ -1285,8 +1312,9 @@ class TodoApp:
         
         for col in columns:
             self.tree.heading(col, text=col)
-        
-        self.tree.column("분류", width=70)
+
+        self.tree.column("카테고리", width=70)
+        self.tree.column("(To-Do)", width=60)
         self.tree.column("마감일", width=150)
         self.tree.column("제목", width=380)
         self.tree.column("발신자", width=160)
@@ -1304,26 +1332,46 @@ class TodoApp:
         detail_category_frame.pack(side="right", fill="both", expand=False, padx=(10, 0))
         
         # Category Frame
-        category_frame = ttk.LabelFrame(detail_category_frame, text="분류 / 마감일 관리", padding=10, borderwidth=0, relief="flat")
+        category_frame = ttk.LabelFrame(detail_category_frame, text="카테고리 / 마감일 관리", padding=10, borderwidth=0, relief="flat")
         category_frame.pack(fill="x")
         
-        ttk.Label(category_frame, text="현재 분류:").pack(anchor="w", pady=(0, 5))
-        self.current_category_label = ttk.Label(category_frame, text="-", font=("", 10, "bold"))
+        ttk.Label(category_frame, text="현재 카테고리:").pack(anchor="w", pady=(0, 5))
+        self.current_category_label = ttk.Label(category_frame, text="-", font=self.default_font)
         self.current_category_label.pack(anchor="w", pady=(0, 5))
         
         ttk.Label(category_frame, text="마감일:").pack(anchor="w", pady=(0, 5))
-        self.due_date_label = ttk.Label(category_frame, text="-", font=("", 9), foreground="red")
+        self.due_date_label = ttk.Label(category_frame, text="-", font=self.small_font, foreground="red")
         self.due_date_label.pack(anchor="w", pady=(0, 10))
         
         ttk.Separator(category_frame, orient="horizontal").pack(fill="x", pady=5)
         
-        ttk.Label(category_frame, text="분류 변경:").pack(anchor="w", pady=(0, 5))
+        ttk.Label(category_frame, text="카테고리 변경:").pack(anchor="w", pady=(0, 5))
         self.category_var = tk.StringVar()
-        self.category_combo = ttk.Combobox(category_frame, textvariable=self.category_var, 
-                                            values=self.categories, state="readonly", width=15)
+        def get_category_display_list():
+            display_list = []
+            for cat in self.categories:
+                if cat in TODO_CATEGORIES:
+                    display_list.append(f"● {cat}")
+                else:
+                    display_list.append(cat)
+            return display_list
+
+        self.category_display_map = {f"● {cat}": cat for cat in TODO_CATEGORIES if cat in self.categories}
+        self.category_display_map.update({cat: cat for cat in self.categories if cat not in TODO_CATEGORIES})
+
+        self.category_combo = ttk.Combobox(category_frame, textvariable=self.category_var,
+                                           values=get_category_display_list(), state="readonly", width=15)
         self.category_combo.pack(pady=(0, 5))
+
+        # 콤보박스 선택 시 실제 값으로 변환
+        def on_category_select(event):
+            val = self.category_var.get()
+            if val in self.category_display_map:
+                self.category_var.set(self.category_display_map[val])
+
+        self.category_combo.bind("<<ComboboxSelected>>", on_category_select)
         
-        ttk.Button(category_frame, text="분류 적용", command=self.apply_category, width=15).pack(pady=(0, 5))
+        ttk.Button(category_frame, text="카테고리 적용", command=self.apply_category, width=15).pack(pady=(0, 5))
         
         ttk.Label(category_frame, text="마감일 설정:").pack(anchor="w", pady=(10, 5))
         due_date_entry_frame = ttk.Frame(category_frame)
@@ -1331,20 +1379,23 @@ class TodoApp:
         
         self.due_date_entry = ttk.Entry(due_date_entry_frame, width=10)
         self.due_date_entry.pack(side="left")
-        ttk.Label(due_date_entry_frame, text="MM/DD", font=("", 8)).pack(side="left", padx=(5, 0))
+        ttk.Label(due_date_entry_frame, text="MM/DD", font=self.small_font).pack(side="left", padx=(5, 0))
         
         ttk.Button(category_frame, text="마감일 적용", command=self.apply_due_date, width=15).pack(pady=(0, 10))
         
         ttk.Separator(category_frame, orient="horizontal").pack(fill="x", pady=10)
         
         ttk.Label(category_frame, text="카테고리 관리:").pack(anchor="w", pady=(0, 5))
-        ttk.Button(category_frame, text="새 카테고리 추가", command=self.add_category, width=15).pack(pady=(0, 5))
+        btn_frame = ttk.Frame(category_frame)
+        btn_frame.pack(fill="x", pady=(0, 5))
+        ttk.Button(btn_frame, text="새 카테고리 추가", command=self.add_category, width=15).pack(side="left", padx=(0, 5))
+        ttk.Button(btn_frame, text="카테고리 삭제", command=self.delete_category, width=15).pack(side="left")
         
         ttk.Separator(category_frame, orient="horizontal").pack(fill="x", pady=10)
         
-        ttk.Label(category_frame, text="AI 학습 상태:", font=("", 8)).pack(anchor="w")
+        ttk.Label(category_frame, text="AI 학습 상태:", font=self.small_font).pack(anchor="w")
         self.training_status_label = ttk.Label(category_frame, text=f"{len(self.classifier.training_data)}개 학습됨", 
-                                                font=("", 8), foreground="gray")
+                            font=self.small_font, foreground="gray")
         self.training_status_label.pack(anchor="w", pady=(0, 5))
         
         # 메일 내용 미리보기 영역
@@ -1453,12 +1504,11 @@ class TodoApp:
         completed_count = 0
         overdue_count = 0
         
-        # 제출/검토 메일만 필터링
+        # todo 카테고리만 필터링
         for idx, email_data in enumerate(self.emails_data, 1):
             category = email_data.get("category", "")
-            
-            # 제출 또는 검토 메일만 표시
-            if category not in ["제출", "검토"]:
+            # todo 카테고리만 표시
+            if category not in TODO_CATEGORIES:
                 continue
             
             subject = email_data.get("subject", "제목 없음")
@@ -1515,14 +1565,14 @@ class TodoApp:
             from_ = email_data.get("from", "발신자 없음")
             date_header = email_data.get("date_header", "날짜 없음")
             body = email_data.get("body", "")
-            
             # AI 분류 (이미 분류되어 있지 않으면)
             if "category" not in email_data:
                 category = self.classifier.predict(subject, body, from_)
                 email_data["category"] = category
             else:
                 category = email_data["category"]
-            
+            # (To-Do) 여부 표기: todo면 빨간 동그라미, 아니면 빈 문자열
+            is_todo = "●" if category in TODO_CATEGORIES else ""
             # 마감일 추출 (제출 카테고리인 경우)
             due_date_str = "-"
             if "due_date" not in email_data and category == "제출":
@@ -1538,8 +1588,12 @@ class TodoApp:
                 due_date = email_data["due_date"]
                 _, remaining_str = calculate_days_remaining(due_date)
                 due_date_str = f"{due_date.strftime('%m/%d')} {remaining_str}"
-            
-            self.tree.insert("", "end", text=str(idx), values=(category, due_date_str, subject, from_, date_header))
+            self.tree.insert("", "end", text=str(idx), values=(category, is_todo, due_date_str, subject, from_, date_header))
+            # 빨간 동그라미 컬럼 스타일 적용
+            if is_todo == "●":
+                self.tree.item(self.tree.get_children()[-1], tags=("todo_dot",))
+        # 스타일 태그 적용
+        self.tree.tag_configure("todo_dot", foreground="red")
     
     def on_select(self, event):
         selection = self.tree.selection()
@@ -1603,7 +1657,7 @@ class TodoApp:
         """선택한 메일에 분류 적용"""
         selection = self.tree.selection()
         if not selection:
-            messagebox.showwarning("선택 없음", "분류를 변경할 메일을 선택하세요.")
+            messagebox.showwarning("선택 없음", "카테고리를 변경할 메일을 선택하세요.")
             return
         
         item = selection[0]
@@ -1611,7 +1665,7 @@ class TodoApp:
         new_category = self.category_var.get()
         
         if not new_category:
-            messagebox.showwarning("분류 없음", "적용할 분류를 선택하세요.")
+            messagebox.showwarning("카테고리 없음", "적용할 카테고리를 선택하세요.")
             return
         
         if 0 <= idx < len(self.emails_data):
@@ -1656,11 +1710,12 @@ class TodoApp:
             # 학습 상태 업데이트
             self.training_status_label.config(text=f"{len(self.classifier.training_data)}개 학습됨")
             
-            # 할일 목록 업데이트
+            # 할일 목록/전체메일 테이블 모두 업데이트
             self.populate_todo_tree()
+            self.populate_tree()
             
             if old_category != new_category:
-                messagebox.showinfo("분류 변경", f"'{old_category}' → '{new_category}'로 변경되었습니다.\nAI 학습이 업데이트되었습니다.")
+                messagebox.showinfo("카테고리 변경", f"'{old_category}' → '{new_category}'로 변경되었습니다.\nAI 학습이 업데이트되었습니다.")
     
     def apply_due_date(self):
         """마감일 수동 설정"""
@@ -1730,49 +1785,56 @@ class TodoApp:
             messagebox.showinfo("마감일 설정", f"마감일이 {due_date.strftime('%Y년 %m월 %d일')}로 설정되었습니다.\n{remaining_str}")
     
     def add_category(self):
-        """새 카테고리 추가"""
+        """새 카테고리 추가 (To-Do 여부 선택)"""
         dialog = tk.Toplevel(self.root)
         dialog.title("새 카테고리 추가")
-        dialog.geometry("350x150")
+        dialog.geometry("350x200")
         dialog.resizable(False, False)
         dialog.transient(self.root)
         dialog.grab_set()
-        
+
         frame = ttk.Frame(dialog, padding=20)
         frame.pack(fill="both", expand=True)
-        
+
         ttk.Label(frame, text="새 카테고리 이름:").pack(anchor="w", pady=(0, 5))
-        
+
         category_entry = ttk.Entry(frame, width=30)
         category_entry.pack(pady=(0, 10))
         category_entry.focus()
-        
+
+        todo_var = tk.BooleanVar(value=True)
+        todo_check = ttk.Checkbutton(frame, text="이 카테고리를 To-Do로 분류", variable=todo_var)
+        todo_check.pack(anchor="w", pady=(0, 10))
+
         def save_new_category():
             new_cat = category_entry.get().strip()
             if not new_cat:
                 messagebox.showwarning("입력 오류", "카테고리 이름을 입력하세요.")
                 return
-            
             if new_cat in self.categories:
                 messagebox.showwarning("중복", "이미 존재하는 카테고리입니다.")
                 return
-            
             self.categories.append(new_cat)
+            global TODO_CATEGORIES, NON_TODO_CATEGORIES
+            if todo_var.get():
+                TODO_CATEGORIES.append(new_cat)
+            else:
+                NON_TODO_CATEGORIES.append(new_cat)
             save_categories(self.categories)
             self.category_combo['values'] = self.categories
             messagebox.showinfo("성공", f"'{new_cat}' 카테고리가 추가되었습니다.")
             dialog.destroy()
-        
+
         button_frame = ttk.Frame(frame)
         button_frame.pack(pady=(10, 0))
-        
+
         ttk.Button(button_frame, text="추가", command=save_new_category).pack(side="left", padx=5)
         ttk.Button(button_frame, text="취소", command=dialog.destroy).pack(side="left", padx=5)
-        
+
         # Enter 키로 저장
         category_entry.bind("<Return>", lambda e: save_new_category())
     def delete_category(self):
-        """선택한 카테고리 삭제"""
+        """선택한 카테고리 삭제 및 해당 카테고리로 분류된 이메일을 미분류로 변경"""
         current_cat = self.category_var.get()
         if not current_cat:
             messagebox.showwarning("선택 없음", "삭제할 카테고리를 선택하세요.")
@@ -1783,18 +1845,20 @@ class TodoApp:
         if current_cat not in self.categories:
             messagebox.showwarning("존재하지 않음", "해당 카테고리가 목록에 없습니다.")
             return
-        # 실제로 사용 중인 메일이 있으면 삭제 불가
-        used = any(e.get("category") == current_cat for e in self.emails_data)
-        if used:
-            messagebox.showwarning("삭제 불가", "해당 카테고리가 할당된 메일이 있어 삭제할 수 없습니다.")
-            return
-        if messagebox.askyesno("카테고리 삭제", f"'{current_cat}' 카테고리를 정말 삭제하시겠습니까?"):
+        if messagebox.askyesno("카테고리 삭제", f"'{current_cat}' 카테고리를 정말 삭제하시겠습니까?\n\n이 카테고리로 지정된 이메일은 '미분류'로 변경됩니다."):
+            # 해당 카테고리로 분류된 이메일을 미분류로 변경
+            changed_count = 0
+            for e in self.emails_data:
+                if e.get("category") == current_cat:
+                    e["category"] = "미분류"
+                    changed_count += 1
             self.categories.remove(current_cat)
             save_categories(self.categories)
             self.category_combo['values'] = self.categories
             self.category_var.set("")
-            messagebox.showinfo("삭제 완료", f"'{current_cat}' 카테고리가 삭제되었습니다.")
-        ttk.Button(category_frame, text="카테고리 삭제", command=self.delete_category, width=15).pack(pady=(0, 5))
+            self.populate_tree()
+            self.populate_todo_tree()
+            messagebox.showinfo("삭제 완료", f"'{current_cat}' 카테고리가 삭제되었습니다.\n\n{changed_count}개의 이메일이 '미분류'로 변경되었습니다.")
     
     def on_todo_select(self, event):
         """할일 목록 선택 이벤트"""
@@ -1873,7 +1937,7 @@ class TodoApp:
             due_date = email_data.get('due_date')
             is_completed = email_data.get('is_completed', False)
             
-            ttk.Label(info_frame, text=f"분류: {category}", font=("", 10, "bold")).pack(anchor="w")
+            ttk.Label(info_frame, text=f"분류: {category}", font=self.default_font).pack(anchor="w")
             
             if due_date:
                 days_remaining, remaining_str = calculate_days_remaining(due_date)
