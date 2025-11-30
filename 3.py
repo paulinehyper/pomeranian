@@ -2156,6 +2156,7 @@ class TodoApp:
             content = f"제목: {email_data.get('subject', '')}\n"
             content += f"발신자: {email_data.get('from', '')}\n"
             content += f"날짜: {email_data.get('date_header', '')}\n"
+            content += f"정규화된 제목: {email_data.get('subject_norm', '')}\n"
             content += "\n" + "="*50 + "\n\n"
             content += email_data.get('body', '')
             
