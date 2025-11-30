@@ -1073,6 +1073,7 @@ class TodoApp:
         style.configure("TRadiobutton", background=bright_bg, foreground=dark_fg)
         style.configure("TFrame", background=bright_bg)
         style.configure("TLabelframe", background=bright_bg, foreground=dark_fg)
+        style.configure("TLabelframe.Label", background=bright_bg, foreground=dark_fg)
         style.configure("TSeparator", background=bright_bg)
         style.configure("TScrollbar", background=bright_bg)
         style.configure("TProgressbar", background=bright_bg)
