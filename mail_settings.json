@@ -1,3 +1,14 @@
+<<<<<<< HEAD
+{
+  "mail_server": "Naver",
+  "custom_host": "",
+  "custom_port": 993,
+  "custom_ssl": true,
+  "days_lookback": 7,
+  "noti_interval": 1,
+  "username": "",
+  "password": ""
+=======
 {
   "mail_server": "Naver",
   "custom_host": "",
@@ -7,4 +18,5 @@
   "noti_interval": 1,
   "username": "rhvhffls",
   "password": "YLGEJM6TXXET"
+>>>>>>> 272c865ef99ebf14f15480398942c2fbdc01524f
 }

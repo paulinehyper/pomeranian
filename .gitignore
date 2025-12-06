@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Python
 __pycache__/
 *.pyc
@@ -38,3 +39,45 @@ Thumbs.db
 # Others
 *.bak
 *.swp
+=======
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# VSCode
+.vscode/
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Fonts and binaries
+
+
+*.woff
+*.woff2
+
+# Logs
+*.log
+
+# 대용량 폰트/압축 파일 제외
+.zip
+
+# Env files
+.env
+.env.*
+
+# Others
+*.bak
+*.swp
+>>>>>>> 272c865ef99ebf14f15480398942c2fbdc01524f
